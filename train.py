@@ -59,6 +59,8 @@ def train_model(model, train_loader, dev_loader):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Argument Parser")
+    # Data options
+    parser.add_argument("--sort_data", type=bool, default=False, help="Sort training data based on sentence length")
 
     # Training options
     parser.add_argument("--n_epochs", type=int, default=20, help="number of epochs to train")
@@ -78,7 +80,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    train, val, test= CustomSNLIDataset(split='train'), CustomSNLIDataset(split='validation'), CustomSNLIDataset(split='test'), 
+    train, val, test= CustomSNLIDataset(split='train', sort=args.sort_data), CustomSNLIDataset(split='validation', sort=args.sort_data), CustomSNLIDataset(split='test', sort=args.sort_data), 
     train_dataloader = DataLoader(train, batch_size=args.batch_size,
                               shuffle=True, collate_fn=collate_batch)
     valid_dataloader = DataLoader(val, batch_size=args.batch_size,
