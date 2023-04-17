@@ -4,9 +4,9 @@ from models import NLIModel
 def evaluate(model, dataloader, criterion=None):
     model.eval()
     with torch.no_grad():
-        for premise, hypothesis, label in enumerate(dataloader):
+        for premise, hypothesis, label in dataloader:
             predicted_label = model(premise, hypothesis)
-            accuracy = torch.sum(predicted_label == label) / len(predicted_label)
+            accuracy = torch.sum(torch.argmax(predicted_label, axis=1) == label) / len(predicted_label)
     if criterion:
         loss = criterion(predicted_label, label)
         return loss, accuracy

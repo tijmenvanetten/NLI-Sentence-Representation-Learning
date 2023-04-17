@@ -27,7 +27,7 @@ def train_epoch(model, optimizer, criterion, train_loader):
         total_count += 1
     writer.add_scalar("Loss/train", total_loss/total_count)
 
-def train_model(model, train_loader, dev_loader):
+def train_model(model, epochs, train_loader, dev_loader):
 
     weight = torch.FloatTensor(model.n_classes).fill_(1)
     criterion = nn.CrossEntropyLoss(weight=weight).to(device)
@@ -36,21 +36,21 @@ def train_model(model, train_loader, dev_loader):
     scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.2)
 
     prev_val_acc = 0
-    epochs = 1
-    while optimizer.param_groups[0]['lr'] >= 1e-4:
+    for epoch in range(epochs):
         train_epoch(model, optimizer, criterion, train_loader)
-        print("Epochs:", epochs)
-        epochs +=1 
-        val_loss, val_acc = evaluate(model, dev_loader)
-        writer.add_scalar("Loss/val", val_loss, epoch=epochs)
+        print("Epoch:", epoch)
+        val_loss, val_acc = evaluate(model, dev_loader, criterion=criterion)
+        writer.add_scalar("Loss/val", val_loss, epoch)
         # divide by 5 if dev accuracy decreases
         if val_acc < prev_val_acc:
             scheduler2.step()
         else:
             scheduler1.step()
         prev_val_acc = val_acc
+        if optimizer.param_groups[0]['lr'] >= 1e-4:
+            break
     torch.save({
-            'epoch': epochs,
+            'epoch': epoch,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': val_loss,
@@ -82,11 +82,11 @@ if __name__ == "__main__":
 
     train, val, test= CustomSNLIDataset(split='train', sort=args.sort_data), CustomSNLIDataset(split='validation', sort=args.sort_data), CustomSNLIDataset(split='test', sort=args.sort_data), 
     train_dataloader = DataLoader(train, batch_size=args.batch_size,
-                              shuffle=True, collate_fn=collate_batch)
+                              shuffle=True, collate_fn=collate_batch, num_workers=8)
     valid_dataloader = DataLoader(val, batch_size=args.batch_size,
-                                shuffle=True, collate_fn=collate_batch)
+                                shuffle=True, collate_fn=collate_batch, num_workers=8)
     test_dataloader = DataLoader(test, batch_size=args.batch_size,
-                                shuffle=True, collate_fn=collate_batch)
+                                shuffle=True, collate_fn=collate_batch, num_workers=8)
     
     model = NLIModel(
         args.word_embed_dim,
@@ -97,7 +97,7 @@ if __name__ == "__main__":
         args.enc_h_dim,
         ).to(device)
 
-    train_model(model, train_dataloader, valid_dataloader)
+    train_model(model, args.n_epochs, train_dataloader, valid_dataloader)
     val_acc = evaluate(model, test_dataloader)
     print(val_acc)
 

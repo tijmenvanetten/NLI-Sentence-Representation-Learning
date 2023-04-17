@@ -19,5 +19,5 @@ def collate_batch(batch):
     hypotheses_len = [len(hypothesis) for hypothesis in hypotheses]
     premises_padded = torch.nn.utils.rnn.pad_sequence(premises, batch_first=True)
     hypotheses_padded = torch.nn.utils.rnn.pad_sequence(hypotheses, batch_first=True)
-    labels = torch.tensor(labels, dtype=torch.int32)
+    labels = torch.tensor(labels, dtype=torch.int64)
     return (premises_padded.to(device), premises_len), (hypotheses_padded.to(device), hypotheses_len), labels.to(device)
