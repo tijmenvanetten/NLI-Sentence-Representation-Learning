@@ -1,10 +1,14 @@
 import argparse
+import torch
 from models import NLIModel
 from data import CustomSNLIDataset
 from torch.utils.data import DataLoader
 from utils import collate_batch
-from training import train_model
-from evaluation import evaluate
+from train import train_model
+from eval import evaluate
+
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def main(args):
     train, val, test= CustomSNLIDataset(split='train'), CustomSNLIDataset(split='validation'), CustomSNLIDataset(split='test'), 
@@ -22,7 +26,7 @@ def main(args):
         args.encoder,
         args.enc_n_layers,
         args.enc_h_dim,
-        )
+        ).to(device)
 
     train_model(model, train_dataloader, valid_dataloader)
     val_acc = evaluate(model, test_dataloader)

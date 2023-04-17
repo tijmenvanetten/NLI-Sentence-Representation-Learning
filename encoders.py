@@ -8,7 +8,9 @@ class BaselineEncoder(nn.Module):
         super().__init__()
 
     def forward(self, sentences):
-        return torch.mean(sentences, axis=1)
+        sentences, sent_lens = sentences
+        sent_unpadded = [embedding[:pad_idx] for embedding, pad_idx in zip(sentences, sent_lens)]
+        return torch.stack([torch.mean(sentence, axis=0) for sentence in sent_unpadded])
     
 
 class LSTMEncoder(nn.Module):
@@ -55,7 +57,7 @@ class BiLSTMMaxPoolEncoder(BiLSTMEncoder):
         sent_output,_ = self.lstm(sent_packed) 
         sent_output,_ = nn.utils.rnn.pad_packed_sequence(sent_output, batch_first=True)
 
-        # remove padding
+        # remove padding for max pooling
         sent_output = [embedding[:pad_idx] for embedding, pad_idx in zip(sent_output, sent_lens)]
         sent_output_max_pool = torch.stack([torch.max(x, 0)[0] for x in sent_output], 0)
         return sent_output_max_pool

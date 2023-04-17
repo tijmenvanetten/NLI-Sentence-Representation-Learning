@@ -1,4 +1,5 @@
 import torch 
+from models import NLIModel
 
 def evaluate(model, dataloader, criterion=None):
     model.eval()
@@ -10,3 +11,8 @@ def evaluate(model, dataloader, criterion=None):
         loss = criterion(predicted_label, label)
         return loss, accuracy
     return accuracy
+
+if __name__ == "__main__":
+    model = NLIModel()
+    model.load_state_dict("model.pt")
+    print(evaluate(model))

@@ -3,6 +3,7 @@ from torch import nn
 from encoders import BaselineEncoder, LSTMEncoder, BiLSTMEncoder, BiLSTMMaxPoolEncoder
 
 
+
 encoders_dict =  {
     'BaselineEncoder': BaselineEncoder, 
     'LSTMEncoder': LSTMEncoder, 
@@ -20,7 +21,7 @@ class NLIModel(nn.Module):
 
         self.classifier = nn.Sequential(
             nn.Linear(self.word_embed_dim * 4, self.fc_h_dim),
-            nn.Tanh(),
+            nn.Linear(self.fc_h_dim, self.fc_h_dim),
             nn.Linear(self.fc_h_dim, self.n_classes)
         )
         self.normalize = nn.Softmax(dim=1)
@@ -34,7 +35,3 @@ class NLIModel(nn.Module):
         linear_output = self.classifier(linear_input)
         return self.normalize(linear_output)
     
-
-if __name__ == "__main__":
-    model = NLIModel(300, 5, 3, "BaselineEncoder", 3, 10)
-    print(model)

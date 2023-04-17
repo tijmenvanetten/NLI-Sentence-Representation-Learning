@@ -10,13 +10,12 @@ def preprocess(example):
     example['premise_len'] = len(example['premise'])
     example['hypothesis_len'] = len(example['hypothesis'])
     example['total_len'] = example['premise_len'] + example['hypothesis_len']
-    example['label'] = torch.abs(example['label'])
     return example
 
 class CustomSNLIDataset(Dataset):
     def __init__(self, split='train', sort=False) -> None:
         data = load_dataset("snli", split=split)
-        self.data = data.with_format("torch").map(preprocess)
+        self.data = data.with_format("torch").filter(lambda example: example['label'] >= 0).map(preprocess)
         if sort:
             self.sort(sort)
 
