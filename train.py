@@ -1,19 +1,15 @@
-import torch 
-from torch import nn 
+import torch
+from torch import nn
 import argparse
 from torch.utils.tensorboard import SummaryWriter
 from eval import evaluate
-from data import CustomSNLIDataset
+from data import CustomSNLIDataset, collate_batch
 from models import NLIModel
 from torch.utils.data import DataLoader
-from utils import collate_batch
 from tqdm import tqdm
 
-writer = SummaryWriter()
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-def train_epoch(model, optimizer, criterion, train_loader):
+def train_epoch(model, optimizer, criterion, train_loader, writer):
     total_loss, total_count = 0, 0
     for premise, hypothesis, label in tqdm(train_loader):
         optimizer.zero_grad()
@@ -25,21 +21,25 @@ def train_epoch(model, optimizer, criterion, train_loader):
 
         total_loss += loss
         total_count += 1
-    writer.add_scalar("Loss/train", total_loss/total_count)
+    return total_loss / total_count
 
-def train_model(model, epochs, train_loader, dev_loader):
 
-    weight = torch.FloatTensor(model.n_classes).fill_(1)
-    criterion = nn.CrossEntropyLoss(weight=weight).to(device)
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
-    scheduler1 = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.99)
-    scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.2)
+def train_model(model, epochs, lr, min_lr, weight_decay, max_norm, train_loader, val_loader, writer, encoder):
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=lr)
 
-    prev_val_acc = 0
+    scheduler1 = torch.optim.lr_scheduler.StepLR(
+        optimizer, step_size=1, gamma=weight_decay
+    )
+    scheduler2 = torch.optim.lr_scheduler.StepLR(
+        optimizer, step_size=1, gamma=1/max_norm
+    )
+
+    val_acc, prev_val_acc = 0, 0
     for epoch in range(epochs):
-        train_epoch(model, optimizer, criterion, train_loader)
-        print("Epoch:", epoch)
-        val_loss, val_acc = evaluate(model, dev_loader, criterion=criterion)
+        train_loss = train_epoch(model, optimizer, criterion, train_loader, writer)
+        writer.add_scalar("Loss/train", train_loss, epoch)
+        val_loss, val_acc = evaluate(model, val_loader, criterion=criterion)
         writer.add_scalar("Loss/val", val_loss, epoch)
         # divide by 5 if dev accuracy decreases
         if val_acc < prev_val_acc:
@@ -47,47 +47,76 @@ def train_model(model, epochs, train_loader, dev_loader):
         else:
             scheduler1.step()
         prev_val_acc = val_acc
-        if optimizer.param_groups[0]['lr'] >= 1e-4:
+        if optimizer.param_groups[0]["lr"] <= min_lr:
             break
-    torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': val_loss,
-            }, "model.pt")
+
+    torch.save(
+        {
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            # "loss": val_loss,
+        },
+       f"{encoder}_model.pt",
+    )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Argument Parser")
     # Data options
-    parser.add_argument("--sort_data", type=bool, default=False, help="Sort training data based on sentence length")
+    parser.add_argument(
+        "--sort_data",
+        type=bool,
+        default=False,
+        help="Sort training data based on sentence length",
+    )
 
     # Training options
-    parser.add_argument("--n_epochs", type=int, default=20, help="number of epochs to train")
-    parser.add_argument("--batch_size", type=int, default=64, help="batch size for training")
-    parser.add_argument("--optimizer", type=str, default="sgd,lr=0.1", help="optimizer for training, e.g. adam or sgd with learning rate")
-    parser.add_argument("--decay", type=float, default=0.99, help="learning rate decay")
-    parser.add_argument("--minlr", type=float, default=1e-5, help="minimum learning rate")
-    parser.add_argument("--max_norm", type=float, default=5., help="maximum gradient norm (for gradient clipping)")
+    parser.add_argument("--n_epochs", type=int, default=20)
+    parser.add_argument("--n_workers", type=int, default=0)
+    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--decay", type=float, default=0.99)
+    parser.add_argument("--lr", type=float, default=0.1)
+    parser.add_argument("--min_lr", type=float, default=1e-5)
+    parser.add_argument("--max_norm", type=int, default=5)
 
     # Model options
-    parser.add_argument("--word_embed_dim", type=int, default=300, help="dimension of word embedding space")
-    parser.add_argument("--encoder", type=str, default='BaselineEncoder', help="type of encoder to use: ")
-    parser.add_argument("--enc_h_dim", type=int, default=2048, help="dimension of encoder hidden states")
-    parser.add_argument("--enc_n_layers", type=int, default=1, help="number of encoder layers")
-    parser.add_argument("--fc_h_dim", type=int, default=512, help="dimension of fully connected layers")
-    parser.add_argument("--n_classes", type=int, default=3, help="number of classes for classification (entailment/neutral/contradiction)")
+    parser.add_argument("--word_embed_dim", type=int, default=300)
+    parser.add_argument("--encoder", type=str, default='BaselineEncoder')
+    parser.add_argument("--enc_h_dim", type=int, default=2048)
+    parser.add_argument("--enc_n_layers", type=int, default=1)
+    parser.add_argument("--fc_h_dim", type=int, default=512)
+    parser.add_argument("--n_classes", type=int, default=3)
 
     args = parser.parse_args()
 
-    train, val, test= CustomSNLIDataset(split='train', sort=args.sort_data), CustomSNLIDataset(split='validation', sort=args.sort_data), CustomSNLIDataset(split='test', sort=args.sort_data), 
-    train_dataloader = DataLoader(train, batch_size=args.batch_size,
-                              shuffle=True, collate_fn=collate_batch, num_workers=8)
-    valid_dataloader = DataLoader(val, batch_size=args.batch_size,
-                                shuffle=True, collate_fn=collate_batch, num_workers=8)
-    test_dataloader = DataLoader(test, batch_size=args.batch_size,
-                                shuffle=True, collate_fn=collate_batch, num_workers=8)
-    
+    train, val, test = (
+        CustomSNLIDataset(split="train", sort=args.sort_data),
+        CustomSNLIDataset(split="validation"),
+        CustomSNLIDataset(split="test"),
+    )
+    train_dataloader = DataLoader(
+        train,
+        batch_size=args.batch_size,
+        shuffle=True,
+        collate_fn=collate_batch,
+        num_workers=args.n_workers,
+    )
+    valid_dataloader = DataLoader(
+        val,
+        batch_size=args.batch_size,
+        shuffle=True,
+        collate_fn=collate_batch,
+        num_workers=args.n_workers,
+    )
+    test_dataloader = DataLoader(
+        test,
+        batch_size=args.batch_size,
+        shuffle=True,
+        collate_fn=collate_batch,
+        num_workers=args.n_workers,
+    )
+
     model = NLIModel(
         args.word_embed_dim,
         args.fc_h_dim,
@@ -95,10 +124,21 @@ if __name__ == "__main__":
         args.encoder,
         args.enc_n_layers,
         args.enc_h_dim,
-        ).to(device)
+    )
 
-    train_model(model, args.n_epochs, train_dataloader, valid_dataloader)
+    writer = SummaryWriter()
+
+    train_model(
+        model=model, 
+        epochs=args.n_epochs, 
+        lr=args.lr,
+        min_lr=args.min_lr,
+        weight_decay=args.decay,
+        max_norm=args.max_norm,
+        train_loader=train_dataloader, 
+        val_loader=valid_dataloader,
+        writer=writer,
+        encoder=args.encoder,
+    )
     val_acc = evaluate(model, test_dataloader)
     print(val_acc)
-
-
