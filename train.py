@@ -55,7 +55,7 @@ def train_model(model, epochs, lr, min_lr, weight_decay, max_norm, train_loader,
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
-            # "loss": val_loss,
+            "loss": val_loss,
         },
        f"{encoder}_model.pt",
     )
