@@ -25,18 +25,18 @@ trained models can be found here: https://drive.google.com/file/d/19lHYk0uRKvkyZ
 ## Setup
 
 .
-├── models/             # Folder for the models trained on the SNLI dataset
-├── runs/               # Tensorboard logs of each training run
-├── environment_gpu.yml # Conda environment
-├── data.py             # Contains the CustomSNLIDataset used to load the SNLI data into a PyTorch Dataloader
-├── encoders.py         # Implementation of the different encoders used for the 
-├── model.py            # Contains the PyTorch implementation of the NLIModel
-├── train.py            # Training function used to train the NLIModel on the SNLIDataset
-├── eval.py             # Evaluate the accuracy of the pretrained models on the SNLI training task
-├── senteval.py         # Evaluates the accuracy of the pretrained models on the SentEval/ task
-├── utils.py            # Contains utility function for inference preprocessing
-├── Results.ipynb       # Shows final results and error analysis
-└── README.md
+├── models/             # Folder for the models trained on the SNLI dataset  
+├── runs/               # Tensorboard logs of each training run  
+├── environment_gpu.yml # Conda environment  
+├── data.py             # Contains the CustomSNLIDataset used to load the SNLI data into a PyTorch Dataloader  
+├── encoders.py         # Implementation of the different encoders used for the   
+├── model.py            # Contains the PyTorch implementation of the NLIModel  
+├── train.py            # Training function used to train the NLIModel on the SNLIDataset  
+├── eval.py             # Evaluate the accuracy of the pretrained models on the SNLI training task  
+├── senteval.py         # Evaluates the accuracy of the pretrained models on the SentEval/ task  
+├── utils.py            # Contains utility function for inference preprocessing  
+├── Results.ipynb       # Shows final results and error analysis  
+└── README.md  
 
 
 ## Glove Embedding
