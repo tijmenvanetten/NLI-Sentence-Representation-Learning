@@ -38,6 +38,7 @@ trained models can be found here: https://drive.google.com/file/d/19lHYk0uRKvkyZ
 ├── Results.ipynb       # Shows final results and error analysis
 └── README.md
 
+
 ## Glove Embedding
 
 The torchtext package was to load the GloVe Embeddings. This package comes with a built in dictionary and can directly map tokens to word embeddings. This allows us to still use embeddings for some of the tokens present in the test and validation set without having seen them in the training data, allowing for more generalizing capability leading to possibly better results. Be sure to change the SentEval glove path to the .vector_cache location to prevent unnecessary downloads.
