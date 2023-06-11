@@ -7,14 +7,20 @@ from data import CustomSNLIDataset, collate_batch
 from models import NLIModel
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from datetime import datetime
 
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def train_epoch(model, optimizer, criterion, train_loader, writer):
+def train_epoch(model, optimizer, criterion, train_loader):
     total_loss, total_count = 0, 0
-    for premise, hypothesis, label in tqdm(train_loader):
-        optimizer.zero_grad()
-        predicted_label = model(premise, hypothesis)
+    model.train()
+    for (premise, premise_len), (hypothesis, hypothesis_len), label in train_loader:
+        premise = premise.to(device)
+        hypothesis = hypothesis.to(device)
+        label = label.to(device)
 
+        optimizer.zero_grad()
+        predicted_label = model((premise, premise_len), (hypothesis, hypothesis_len))
         loss = criterion(predicted_label, label)
         loss.backward()
         optimizer.step()
@@ -24,8 +30,13 @@ def train_epoch(model, optimizer, criterion, train_loader, writer):
     return total_loss / total_count
 
 
-def train_model(model, epochs, lr, min_lr, weight_decay, max_norm, train_loader, val_loader, writer, encoder):
-    criterion = nn.CrossEntropyLoss()
+def train_model(model, epochs, lr, min_lr, weight_decay, max_norm, train_loader, val_loader, encoder):
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
+    writer = SummaryWriter(f"runs/{current_time}_{encoder}")
+
+    print("using device:", device)
+    criterion = nn.CrossEntropyLoss().to(device)
     optimizer = torch.optim.SGD(model.parameters(), lr=lr)
 
     scheduler1 = torch.optim.lr_scheduler.StepLR(
@@ -37,38 +48,31 @@ def train_model(model, epochs, lr, min_lr, weight_decay, max_norm, train_loader,
 
     val_acc, prev_val_acc = 0, 0
     for epoch in range(epochs):
-        train_loss = train_epoch(model, optimizer, criterion, train_loader, writer)
+        print("Training Epoch:", epoch)
+        train_loss = train_epoch(model, optimizer, criterion, train_loader)
         writer.add_scalar("Loss/train", train_loss, epoch)
         val_loss, val_acc = evaluate(model, val_loader, criterion=criterion)
         writer.add_scalar("Loss/val", val_loss, epoch)
-        # divide by 5 if dev accuracy decreases
+
         if val_acc < prev_val_acc:
             scheduler2.step()
         else:
             scheduler1.step()
         prev_val_acc = val_acc
+        print(f"Finished Training Epoch: {epoch}, Train/Loss: {train_loss}, Val/Loss: {val_loss}")
+        print(f"Validation Accuracy: {val_acc}")
         if optimizer.param_groups[0]["lr"] <= min_lr:
             break
-
-    torch.save(
-        {
-            "epoch": epoch,
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "loss": val_loss,
-        },
-       f"{encoder}_model.pt",
-    )
-
+    writer.close()
+    torch.save(model, f"models/final_{encoder}_model.pt")
 
 if __name__ == "__main__":
+    # torch.multiprocessing.set_start_method('spawn')
+
     parser = argparse.ArgumentParser(description="Argument Parser")
     # Data options
-    parser.add_argument(
-        "--sort_data",
-        type=bool,
-        default=False,
-        help="Sort training data based on sentence length",
+    parser.add_argument("--sort_data", type=bool, default=False, 
+                        help="Sort training data based on sentence length",
     )
 
     # Training options
@@ -90,17 +94,19 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    train, val, test = (
-        CustomSNLIDataset(split="train", sort=args.sort_data),
+    print("Loading Training Data...")
+    train, val = (
+        CustomSNLIDataset(split="train"),
         CustomSNLIDataset(split="validation"),
-        CustomSNLIDataset(split="test"),
     )
+    print("Finished Loading Training Data...")
     train_dataloader = DataLoader(
         train,
         batch_size=args.batch_size,
         shuffle=True,
         collate_fn=collate_batch,
         num_workers=args.n_workers,
+        pin_memory=True,
     )
     valid_dataloader = DataLoader(
         val,
@@ -108,15 +114,14 @@ if __name__ == "__main__":
         shuffle=True,
         collate_fn=collate_batch,
         num_workers=args.n_workers,
-    )
-    test_dataloader = DataLoader(
-        test,
-        batch_size=args.batch_size,
-        shuffle=True,
-        collate_fn=collate_batch,
-        num_workers=args.n_workers,
+        pin_memory=True,
     )
 
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(device)
+    print("Initialising Model...")
     model = NLIModel(
         args.word_embed_dim,
         args.fc_h_dim,
@@ -124,10 +129,9 @@ if __name__ == "__main__":
         args.encoder,
         args.enc_n_layers,
         args.enc_h_dim,
-    )
+    ).to(device)
 
-    writer = SummaryWriter()
-
+    print("Training Model...")
     train_model(
         model=model, 
         epochs=args.n_epochs, 
@@ -137,8 +141,8 @@ if __name__ == "__main__":
         max_norm=args.max_norm,
         train_loader=train_dataloader, 
         val_loader=valid_dataloader,
-        writer=writer,
         encoder=args.encoder,
     )
-    val_acc = evaluate(model, test_dataloader)
-    print(val_acc)
+    
+    # test_acc = evaluate(model, test_dataloader)
+    # print("Final Test Accuracy:", test_acc)

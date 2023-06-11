@@ -4,3 +4,6 @@ runs/
 .SentEval/
 .vscode/settings.json
 model.pt
+ATCS_practical_2023.pdf
+.gitignore
+.DS_Store

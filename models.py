@@ -1,7 +1,7 @@
 import torch 
 from torch import nn
 from encoders import BaselineEncoder, LSTMEncoder, BiLSTMEncoder, BiLSTMMaxPoolEncoder
-
+from utils import preprocess
 
 encoders_dict =  {
     'BaselineEncoder': BaselineEncoder, 
@@ -38,3 +38,13 @@ class NLIModel(nn.Module):
         linear_input = torch.concat([u, v, diff_u_v, cross_u_v], axis=1)
         return self.classifier(linear_input)
     
+    def predict(self, premise, hypothesis):
+        label_to_class = {
+            0 : "Entailment",
+            1 : "Contradiction",
+            2 : "Neutral"
+        }
+        premise = preprocess(premise)
+        hypothesis = preprocess(hypothesis)
+        pred_label =self.forward(premise, hypothesis).argmax(axis=1).item()
+        return label_to_class[pred_label]
