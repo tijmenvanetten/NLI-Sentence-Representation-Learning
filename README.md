@@ -24,7 +24,7 @@ trained models can be found here: https://drive.google.com/file/d/19lHYk0uRKvkyZ
 
 ## Setup
 
-.
+.  
 ├── models/             # Folder for the models trained on the SNLI dataset  
 ├── runs/               # Tensorboard logs of each training run  
 ├── environment_gpu.yml # Conda environment  
